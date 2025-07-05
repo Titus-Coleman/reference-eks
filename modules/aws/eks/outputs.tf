@@ -1,3 +1,8 @@
+output "cluster" {
+  description = "The EKS cluster resource block"
+  value       = aws_eks_cluster.main
+}
+
 output "cluster_id" {
   description = "The EKS cluster ID"
   value       = aws_eks_cluster.main.id

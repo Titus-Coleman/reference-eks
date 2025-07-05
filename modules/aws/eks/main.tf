@@ -207,28 +207,9 @@ resource "aws_launch_template" "eks_node_group" {
   }
 }
 
-############################################################################################################
-### OIDC CONFIGURATION
-############################################################################################################
 
-data "tls_certificate" "eks" {
-  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
-}
 
-resource "aws_iam_openid_connect_provider" "eks" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
-}
 
-# resource "aws_eks_identity_provider_config" "eks" {
-#   cluster_name = aws_eks_cluster.main.name
-#   oidc {
-#     identity_provider_config_name = "oidc"
-#     client_id                     = aws_iam_openid_connect_provider.eks.id
-#     issuer_url                    = aws_eks_cluster.main.identity[0].oidc[0].issuer
-#   }
-# }
 
 ############################################################################################################
 ### IAM ROLES
@@ -310,24 +291,6 @@ resource "aws_iam_role_policy_attachment" "eks_registry_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# VPC CNI Plugin Role
-data "aws_iam_policy_document" "vpc_cni_assume_role_policy" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-    effect  = "Allow"
-
-    condition {
-      test     = "StringEquals"
-      variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:kube-system:aws-node"]
-    }
-
-    principals {
-      identifiers = [aws_iam_openid_connect_provider.eks.arn]
-      type        = "Federated"
-    }
-  }
-}
 
 resource "aws_iam_role" "vpc_cni_role" {
   assume_role_policy = data.aws_iam_policy_document.vpc_cni_assume_role_policy.json
