@@ -46,23 +46,111 @@ resource "aws_iam_role" "cni_irsa" {
       }
     ]
   })
-}
 
-# VPC CNI Plugin Role
-data "aws_iam_policy_document" "vpc_cni_assume_role_policy" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-    effect  = "Allow"
-
-    condition {
-      test     = "StringEquals"
-      variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:kube-system:aws-node"]
-    }
-
-    principals {
-      identifiers = [aws_iam_openid_connect_provider.eks.arn]
-      type        = "Federated"
-    }
+  tags = {
+    Name        = "${var.cluster_name}-cni-irsa"
+    Component   = "vpc-cni"
+    ServiceType = "addon"
   }
 }
+
+resource "aws_iam_role_policy_attachment" "cni_irsa_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.cni_irsa.name
+}
+
+# EBS CSI Driver IRSA Role
+resource "aws_iam_role" "ebs_csi_irsa" {
+  name = "${var.cluster_name}-ebs-csi-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" : "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" : "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-ebs-csi-irsa"
+    Component   = "ebs-csi-driver"
+    ServiceType = "addon"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi_irsa_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.ebs_csi_irsa.name
+}
+
+# CoreDNS IRSA Role
+resource "aws_iam_role" "coredns_irsa" {
+  name = "${var.cluster_name}-coredns-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" : "system:serviceaccount:kube-system:coredns"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" : "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-coredns-irsa"
+    Component   = "coredns"
+    ServiceType = "addon"
+  }
+}
+
+# Kube Proxy IRSA Role
+resource "aws_iam_role" "kube_proxy_irsa" {
+  name = "${var.cluster_name}-kube-proxy-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" : "system:serviceaccount:kube-system:kube-proxy"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" : "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-kube-proxy-irsa"
+    Component   = "kube-proxy"
+    ServiceType = "addon"
+  }
+}
+
