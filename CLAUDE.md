@@ -89,5 +89,54 @@ The project follows Terraform best practices with separate modules for VPC and E
 - RBAC with admin role configuration
 - Proper subnet tagging for Kubernetes load balancer integration
 
+## Architecture Deep Dive
+
+### Module Dependencies and Data Flow
+- **VPC → EKS Dependency**: EKS module depends on VPC outputs (`vpc_id`, `private_subnets`, `public_subnets`)
+- **Root Module Orchestration**: Root module passes `cluster_name` consistently to both modules for naming
+- **Output Patterns**: VPC uses `for` expressions for dynamic subnet lists
+
+### IRSA Implementation Pattern
+- **Single OIDC Provider**: Created using EKS cluster's identity issuer URL
+- **Service Account Binding**: Each addon has dedicated IRSA role with specific conditions:
+  - VPC CNI: `system:serviceaccount:kube-system:aws-node`
+  - EBS CSI: `system:serviceaccount:kube-system:ebs-csi-controller-sa`
+  - CoreDNS: `system:serviceaccount:kube-system:coredns` 
+  - Kube Proxy: `system:serviceaccount:kube-system:kube-proxy`
+- **URL Processing**: Uses `replace()` to strip `https://` from OIDC URLs in conditions
+
+### Security Group Architecture
+- **Bi-directional Communication**: Separate SGs for cluster and nodes with explicit inter-group rules
+- **Minimal Access**: Specific ports only (443, 10250, 8443, 53, ephemeral range)
+- **Kubernetes Tags**: Node SG tagged with `kubernetes.io/cluster/${cluster_name}` = "owned"
+
+### Addon Management Pattern
+- **Version Resolution**: Data sources get compatible versions based on cluster Kubernetes version
+- **Conflict Handling**: All addons use `OVERWRITE` for create/update conflicts
+- **IRSA Integration**: Each addon linked via `service_account_role_arn`
+- **Dependencies**: All addons depend on node groups for proper creation order
+
+### Networking Strategy
+- **Multi-AZ Design**: Dynamic AZ selection using `data.aws_availability_zones.available`
+- **CIDR Calculation**: Uses `cidrsubnet()` with configurable additional bits (default 4)
+- **LB Tags**: Public subnets tagged for ELB, private for internal-ELB
+- **Cost Optimization**: Single NAT gateway in first public subnet
+
+### IAM and RBAC Patterns
+- **Dual Authentication**: `API_AND_CONFIG_MAP` mode supports both methods
+- **Admin Bootstrap**: Cluster creator gets automatic admin permissions
+- **aws-auth ConfigMap**: Managed via Kubernetes provider with predefined role/user mappings
+
+### Security and Encryption
+- **KMS Integration**: Dedicated key for secrets encryption with rotation enabled
+- **Launch Template Security**: IMDSv2 enforced, metadata hop limit 2, tags enabled
+- **Node Placement**: Workers only in private subnets
+
+### Terraform Conventions
+- **Naming Pattern**: `${var.cluster_name}-component-type` throughout
+- **Tag Strategy**: Uses `merge()` for combining default and resource-specific tags
+- **For-Each Usage**: Node groups use `for_each` with object variables for flexibility
+- **Data Source Leverage**: Dynamic values from AZs, addon versions, partition data
+
 ### Recent Changes
-The project has been refactored to break out EKS components into separate files (addons.tf, security_groups.tf, irsa.tf) for better maintainability.
+The project has been refactored to break out EKS components into separate files (addons.tf, security_groups.tf, irsa.tf) for better maintainability. All EKS addons now have dedicated IRSA roles following security best practices.
