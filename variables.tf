@@ -1,6 +1,5 @@
 variable "region" {
   type        = string
-  default     = "us-west-2"
   description = "Target AWS region"
 }
 
@@ -10,11 +9,6 @@ variable "cluster_name" {
   description = "Name of the EKS cluster"
 }
 
-# variable "aws_account_number" {
-#   type        = number
-#   description = "AWS account number used for deployment."
-# }
-
 variable "global_tags" {
   type = map(string)
   default = {
@@ -22,3 +16,14 @@ variable "global_tags" {
     "Environment" = "dev"
   }
 }
+
+variable "domain_names" {
+  type        = list(string)
+  description = "List of the domain names to be used be the cluster"
+}
+
+variable "acme_email" {
+  type        = string
+  description = "Email for ACME registration"
+}
+

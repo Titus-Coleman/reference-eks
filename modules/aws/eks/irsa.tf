@@ -188,7 +188,7 @@ resource "aws_iam_role" "secrets_csi_irsa" {
 resource "aws_iam_policy" "secrets_csi_policy" {
   name        = "${var.cluster_name}-secrets-csi-policy"
   description = "Read-only policy for Secrets Store CSI Driver to access AWS secrets"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -223,3 +223,92 @@ resource "aws_iam_role_policy_attachment" "secrets_csi_irsa_policy" {
   role       = aws_iam_role.secrets_csi_irsa.name
 }
 
+# IAM Role for cert-manager with IRSA
+resource "aws_iam_role" "cert_manager" {
+  name = "${var.cluster_name}-cert-manager-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}"
+        }
+        Condition = {
+          StringEquals = {
+            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:cert-manager:cert-manager"
+            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name    = "${var.cluster_name}-cert-manager-role"
+    Cluster = var.cluster_name
+  }
+}
+
+# IAM Policy for cert-manager
+resource "aws_iam_policy" "cert_manager" {
+  name        = "${var.cluster_name}-cert-manager-policy"
+  description = "Policy for cert-manager to manage ACM certificates"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "acm:RequestCertificate",
+          "acm:DescribeCertificate",
+          "acm:ListCertificates",
+          "acm:AddTagsToCertificate"
+        ]
+        Resource = "*"
+      },
+      {
+        # Only allow deletion of certificates tagged with this cluster
+        Effect = "Allow"
+        Action = [
+          "acm:DeleteCertificate"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned"
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:GetChange",
+          "route53:ChangeResourceRecordSets",
+          "route53:ListResourceRecordSets"
+        ]
+        Resource = concat([
+          "arn:aws:route53:::change/*"
+          ], [
+          for zone_id in local.all_zone_ids :
+          "arn:aws:route53:::hostedzone/${zone_id}"
+        ])
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:ListHostedZones",
+          "route53:ListHostedZonesByName"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "cert_manager_isra_policy" {
+  role       = aws_iam_role.cert_manager.name
+  policy_arn = aws_iam_policy.cert_manager.arn
+}

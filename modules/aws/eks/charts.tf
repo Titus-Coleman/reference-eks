@@ -23,6 +23,11 @@ resource "helm_release" "cert-manager" {
       crds = {
         enabled = true
       }
+      serviceAccount = {
+        annotations = {
+          "eks.amazonaws.com/role-arn" = aws_iam_role.cert_manager.arn
+        }
+      }
       #Increase to 2+ in prod
       replicaCount = 1
     })

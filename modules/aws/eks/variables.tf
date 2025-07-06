@@ -58,3 +58,8 @@ variable "enabled_cluster_log_types" {
   type        = list(string)
   default     = ["audit", "api", "authenticator"]
 }
+
+variable "domain_names" {
+  type        = list(string)
+  description = "List of the domain names to be used be the cluster"
+}

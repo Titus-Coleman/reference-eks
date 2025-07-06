@@ -1,0 +1,4 @@
+cluster_name = "demo-cluster"
+region       = "us-west-2"
+domain_names = ["example.com"]
+acme_email   = "admin@example.com"
