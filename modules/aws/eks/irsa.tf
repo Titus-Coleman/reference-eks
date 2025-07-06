@@ -154,3 +154,72 @@ resource "aws_iam_role" "kube_proxy_irsa" {
   }
 }
 
+# Secrets Store CSI Driver IRSA Role
+resource "aws_iam_role" "secrets_csi_irsa" {
+  name = "${var.cluster_name}-secrets-csi-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" : "system:serviceaccount:kube-system:secrets-store-csi-driver"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" : "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-secrets-csi-irsa"
+    Component   = "secrets-store-csi-driver"
+    ServiceType = "csi-driver"
+  }
+}
+
+# IAM Policy for Secrets Store CSI Driver (Read-Only)
+resource "aws_iam_policy" "secrets_csi_policy" {
+  name        = "${var.cluster_name}-secrets-csi-policy"
+  description = "Read-only policy for Secrets Store CSI Driver to access AWS secrets"
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:GetParametersByPath"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:${var.cluster_name}/*",
+          "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:${var.cluster_name}-*",
+          "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.cluster_name}/*",
+          "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.cluster_name}-*"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-secrets-csi-policy"
+    Component   = "secrets-store-csi-driver"
+    ServiceType = "csi-driver"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "secrets_csi_irsa_policy" {
+  policy_arn = aws_iam_policy.secrets_csi_policy.arn
+  role       = aws_iam_role.secrets_csi_irsa.name
+}
+

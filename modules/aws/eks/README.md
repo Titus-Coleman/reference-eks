@@ -29,6 +29,7 @@ The module provisions:
 - `addons.tf` - EKS add-ons configuration with IRSA integration
 - `irsa.tf` - OIDC provider and IAM Roles for Service Accounts
 - `security_groups.tf` - Network security rules for cluster and worker communication
+- `charts.tf` - Helm chart deployments (AWS Secrets Store CSI Driver)
 - `variables.tf` - Input variable definitions
 - `outputs.tf` - Output values for cluster connection and integration
 - `versions.tf` - Terraform and provider version constraints
@@ -108,6 +109,7 @@ Each add-on has dedicated IAM roles with minimal required permissions:
 - **EBS CSI**: `system:serviceaccount:kube-system:ebs-csi-controller-sa`
 - **CoreDNS**: `system:serviceaccount:kube-system:coredns`
 - **Kube Proxy**: `system:serviceaccount:kube-system:kube-proxy`
+- **Secrets CSI**: `system:serviceaccount:kube-system:secrets-store-csi-driver`
 
 ## Node Group Configuration
 
@@ -135,6 +137,9 @@ Each add-on has dedicated IAM roles with minimal required permissions:
 2. **CoreDNS**: DNS resolution with IRSA role  
 3. **Kube Proxy**: Network proxy with IRSA role
 4. **EBS CSI Driver**: Persistent volume support with IRSA role
+
+### Helm Charts
+1. **AWS Secrets Store CSI Driver**: Secure access to AWS Secrets Manager and Parameter Store with IRSA
 
 ## IAM Configuration
 
@@ -178,6 +183,78 @@ kubectl get pods --all-namespaces
 kubectl cluster-info
 ```
 
+## AWS Secrets Integration
+
+The module includes AWS Secrets Store CSI Driver for secure access to AWS secrets and parameters.
+
+### Secret Naming Requirements
+
+The CSI driver can **only** access secrets and parameters that follow the cluster naming convention:
+
+#### Secrets Manager
+- **Path format**: `${cluster-name}/path/to/secret`
+- **Prefix format**: `${cluster-name}-secret-name`
+
+**Examples for cluster "demo-cluster":**
+```
+demo-cluster/database/password
+demo-cluster/app1/api-keys
+demo-cluster-redis-auth
+demo-cluster-shared-config
+```
+
+#### Parameter Store
+- **Path format**: `/${cluster-name}/path/to/parameter`
+- **Prefix format**: `/${cluster-name}-parameter-name`
+
+**Examples for cluster "demo-cluster":**
+```
+/demo-cluster/database/connection-string
+/demo-cluster/app1/config
+/demo-cluster-shared-settings
+```
+
+### Security Isolation
+
+- **Cluster-Scoped Access**: Each cluster can only access its own secrets
+- **Multi-Tenancy Safe**: Multiple clusters in same AWS account are isolated
+- **Least Privilege**: Read-only access to cluster-specific secrets only
+
+### Usage Example
+
+```yaml
+apiVersion: v1
+kind: SecretProviderClass
+metadata:
+  name: app-secrets
+  namespace: default
+spec:
+  provider: aws
+  parameters:
+    objects: |
+      - objectName: "demo-cluster/app1/database-password"
+        objectType: "secretsmanager"
+      - objectName: "/demo-cluster/app1/config"
+        objectType: "ssmparameter"
+```
+
+### Required AWS Resources
+
+Before using the CSI driver, ensure your secrets exist in AWS:
+
+```bash
+# Create secret in Secrets Manager
+aws secretsmanager create-secret \
+  --name "demo-cluster/app1/database-password" \
+  --secret-string "your-secret-value"
+
+# Create parameter in Parameter Store  
+aws ssm put-parameter \
+  --name "/demo-cluster/app1/config" \
+  --value "your-config-value" \
+  --type "SecureString"
+```
+
 ## Monitoring and Logging
 
 ### CloudWatch Integration
@@ -213,4 +290,5 @@ kubectl cluster-info
 - **VPC Module**: Requires VPC with proper subnet configuration
 - **AWS Provider**: ~> 5.100 with appropriate permissions
 - **Kubernetes Provider**: 2.37.1 for resource management
+- **Helm Provider**: ~> 2.12 for Helm chart deployments
 - **TLS Provider**: For OIDC certificate validation

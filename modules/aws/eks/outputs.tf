@@ -68,3 +68,13 @@ output "cluster_creator_policy_association" {
     access_scope_type = aws_eks_access_policy_association.cluster_creator_policy.access_scope[0].type
   }
 }
+
+output "secrets_csi_irsa_role_arn" {
+  description = "ARN of the Secrets Store CSI Driver IRSA role"
+  value       = aws_iam_role.secrets_csi_irsa.arn
+}
+
+output "secrets_csi_policy_arn" {
+  description = "ARN of the Secrets Store CSI Driver IAM policy"
+  value       = aws_iam_policy.secrets_csi_policy.arn
+}
