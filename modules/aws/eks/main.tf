@@ -32,7 +32,7 @@ resource "aws_eks_cluster" "main" {
   }
 
   access_config {
-    authentication_mode                         = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API"
     bootstrap_cluster_creator_admin_permissions = true
   }
 
@@ -332,35 +332,37 @@ resource "aws_iam_role_policy_attachment" "eks_admin_role_policy_attach" {
   policy_arn = aws_iam_policy.eks_admin_policy.arn
 }
 
-# Update the aws-auth ConfigMap to include the IAM group
-resource "kubernetes_config_map" "aws_auth" {
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
+# EKS Access Entries (API Mode)
+resource "aws_eks_access_entry" "admin_role" {
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = aws_iam_role.eks_admins_role.arn
+  type          = "STANDARD"
+  
+  tags = {
+    Name = "${var.cluster_name}-admin-access-entry"
   }
+}
 
-  data = {
-    mapRoles = yamlencode([
-      {
-        rolearn  = aws_iam_role.eks_admins_role.arn
-        username = aws_iam_role.eks_admins_role.name
-        groups   = ["system:masters"]
-      },
-      {
-        rolearn  = aws_iam_role.node_role.arn
-        username = "system:node:{{EC2PrivateDNSName}}"
-        groups   = ["system:bootstrappers", "system:nodes"]
-      }
-    ])
-    mapUsers = yamlencode([
-      {
-        userarn  = data.aws_caller_identity.current.arn
-        username = split("/", data.aws_caller_identity.current.arn)[1]
-        groups   = ["system:masters"]
-      }
-    ])
+# Access Policy Association for Admin Role
+resource "aws_eks_access_policy_association" "admin_policy" {
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = aws_iam_role.eks_admins_role.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  
+  access_scope {
+    type = "cluster"
   }
+}
 
+# Access Policy Association for Cluster Creator (automatically created by bootstrap)
+resource "aws_eks_access_policy_association" "cluster_creator_policy" {
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = data.aws_caller_identity.current.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  
+  access_scope {
+    type = "cluster"
+  }
 }
 
 

@@ -47,3 +47,24 @@ output "oidc_provider_id" {
   description = "The OIDC ID of the Cluster"
   value       = aws_iam_openid_connect_provider.eks.id
 }
+
+output "admin_access_entry_arn" {
+  description = "ARN of the admin role access entry"
+  value       = aws_eks_access_entry.admin_role.access_entry_arn
+}
+
+output "admin_policy_association" {
+  description = "Admin policy association details"
+  value = {
+    policy_arn = aws_eks_access_policy_association.admin_policy.policy_arn
+    access_scope_type = aws_eks_access_policy_association.admin_policy.access_scope[0].type
+  }
+}
+
+output "cluster_creator_policy_association" {
+  description = "Cluster creator policy association details"
+  value = {
+    policy_arn = aws_eks_access_policy_association.cluster_creator_policy.policy_arn
+    access_scope_type = aws_eks_access_policy_association.cluster_creator_policy.access_scope[0].type
+  }
+}

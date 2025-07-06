@@ -1,6 +1,6 @@
 # AWS Modules
 
-This directory contains Terraform modules specifically designed for AWS infrastructure provisioning. These modules follow AWS best practices and aim optimized for production-ready deployments.
+This directory contains Terraform modules specifically designed for AWS infrastructure provisioning. These modules follow AWS best practices and aim for optimized, production-ready deployments.
 
 ## Module Structure
 
