@@ -7,14 +7,26 @@ resource "helm_release" "external_secrets" {
   namespace        = "external-secrets"
   create_namespace = true
 
+  # Cleanup and timeout configurations for graceful destroy
+  cleanup_on_fail = true
+  force_update    = true
+  timeout         = 600  # 10 minutes for operations
+
   set {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = module.eks.secrets_csi_irsa_role_arn
   }
 
+  # Ensure proper dependency order for graceful destroy
   depends_on = [
     module.eks
   ]
+
+
+  # Lifecycle management for graceful operations
+  lifecycle {
+    create_before_destroy = false
+  }
 }
 
 resource "helm_release" "cert_manager" {
@@ -23,6 +35,11 @@ resource "helm_release" "cert_manager" {
   chart            = "cert-manager"
   namespace        = "cert-manager"
   create_namespace = true
+
+  # Cleanup and timeout configurations for graceful destroy
+  cleanup_on_fail = true
+  force_update    = true
+  timeout         = 600  # 10 minutes for operations
 
   values = [
     yamlencode({
@@ -36,10 +53,27 @@ resource "helm_release" "cert_manager" {
       }
       # Increase to 2+ in prod
       replicaCount = 1
+      
+      # Enhanced cleanup configuration for cert-manager
+      webhook = {
+        timeoutSeconds = 30
+      }
+      global = {
+        leaderElection = {
+          namespace = "cert-manager"
+        }
+      }
     })
   ]
 
+  # Ensure proper dependency order for graceful destroy
   depends_on = [
     module.eks
   ]
+
+
+  # Lifecycle management for graceful operations
+  lifecycle {
+    create_before_destroy = false
+  }
 }
