@@ -225,21 +225,21 @@ resource "aws_iam_role_policy_attachment" "secrets_csi_irsa_policy" {
 
 # IAM Role for cert-manager with IRSA
 resource "aws_iam_role" "cert_manager" {
-  name = "${var.cluster_name}-cert-manager-role"
+  name = "${var.cluster_name}-cert-manager-irsa"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action = "sts:AssumeRoleWithWebIdentity"
         Effect = "Allow"
         Principal = {
-          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}"
+          Federated = aws_iam_openid_connect_provider.eks.arn
         }
+        Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:cert-manager:cert-manager"
-            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:aud" = "sts.amazonaws.com"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" : "system:serviceaccount:cert-manager:cert-manager"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" : "sts.amazonaws.com"
           }
         }
       }
@@ -247,8 +247,9 @@ resource "aws_iam_role" "cert_manager" {
   })
 
   tags = {
-    Name    = "${var.cluster_name}-cert-manager-role"
-    Cluster = var.cluster_name
+    Name        = "${var.cluster_name}-cert-manager-irsa"
+    Component   = "cert-manager"
+    ServiceType = "certificate-management"
   }
 }
 

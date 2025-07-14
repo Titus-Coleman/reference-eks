@@ -1,3 +1,7 @@
+data "aws_eks_cluster_auth" "cluster" {
+  name = aws_eks_cluster.main.name
+}
+
 output "cluster" {
   description = "The EKS cluster resource block"
   value       = aws_eks_cluster.main
@@ -35,7 +39,7 @@ output "cluster_certificate_authority_data" {
 
 output "cluster_auth_token" {
   description = "The token required to authenticate with the cluster"
-  value       = data.aws_eks_cluster_auth.main.token
+  value       = data.aws_eks_cluster_auth.cluster.token
 }
 
 output "oidc_provider_arn" {
@@ -77,4 +81,14 @@ output "secrets_csi_irsa_role_arn" {
 output "secrets_csi_policy_arn" {
   description = "ARN of the Secrets Store CSI Driver IAM policy"
   value       = aws_iam_policy.secrets_csi_policy.arn
+}
+
+output "cert_manager_irsa_role_arn" {
+  description = "ARN of the cert-manager IRSA role"
+  value       = aws_iam_role.cert_manager.arn
+}
+
+output "cert_manager_policy_arn" {
+  description = "ARN of the cert-manager IAM policy"
+  value       = aws_iam_policy.cert_manager.arn
 }
