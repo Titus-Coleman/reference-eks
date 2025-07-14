@@ -51,11 +51,12 @@ kubectl get nodes
 
 ```
 ├── README.md                    # This file
+├── SETUP.md                    # Step-by-step setup guide
 ├── CLAUDE.md                   # Claude Code guidance
 ├── main.tf                     # Root module configuration
 ├── variables.tf                # Root module variables
-├── outputs.tf                  # Root module outputs (if exists)
-├── versions.tf                 # Terraform and provider versions
+├── versions.tf                 # Provider configurations
+├── charts.tf                   # Helm chart deployments
 └── modules/
     └── aws/                    # AWS-specific modules
         ├── vpc/                # VPC networking module
@@ -67,6 +68,7 @@ kubectl get nodes
 - **Terraform**: ~>1.12
 - **AWS Provider**: ~> 5.100
 - **Kubernetes Provider**: 2.37.1
+- **Helm Provider**: ~> 2.12
 
 ## Common Commands
 
@@ -113,5 +115,38 @@ For production, consider:
 ```bash
 terraform destroy
 ```
+
+## Helm Charts (Optional)
+
+The project includes optional Helm chart deployments in `charts.tf`:
+- **External Secrets Operator**: Integrates with AWS Secrets Manager/Parameter Store
+- **Cert-Manager**: Automates TLS certificate management with AWS ACM
+
+Both charts are configured with IRSA (IAM Roles for Service Accounts) for secure AWS access.
+
+**To enable charts:**
+1. Uncomment the desired releases in `charts.tf`
+2. Run `terraform plan` to review changes
+3. Run `terraform apply` to deploy
+
+## Provider Architecture
+
+This project uses **root-level provider configuration** to avoid circular dependencies:
+- All providers (AWS, Kubernetes, Helm) configured in `versions.tf`
+- EKS module is provider-agnostic (no provider blocks in modules)
+- Kubernetes/Helm providers use module outputs for cluster connection
+
+## Troubleshooting
+
+### Circular Dependencies
+- **Error**: "Provider configuration not present"
+- **Solution**: Ensure all providers are at root level, modules use outputs only
+
+### Orphaned Resources
+- **Error**: Resources in state but configuration removed
+- **Solution**: `terraform state rm <resource_name>` to clean state
+
+### Setup Issues
+- See [SETUP.md](SETUP.md) for detailed troubleshooting guide
 
 **Note**: Ensure you have appropriate AWS credentials configured and necessary IAM permissions before deployment.

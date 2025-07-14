@@ -42,6 +42,7 @@ Creates a comprehensive EKS cluster with:
 - Essential add-ons (VPC CNI, CoreDNS, Kube Proxy, EBS CSI)
 - IRSA (IAM Roles for Service Accounts) for all add-ons
 - KMS encryption and CloudWatch logging
+- Outputs for root-level Helm chart integration
 
 ## Design Principles
 
@@ -70,24 +71,24 @@ Creates a comprehensive EKS cluster with:
 
 ## Module Dependencies
 
-The modules are designed to work together:
+The modules are designed to work together with root-level orchestration:
 
 ```
-VPC Module → EKS Module
-     ↓           ↓
-  vpc_id    private_subnets
-public_subnets  ← used by EKS
+VPC Module → EKS Module → Root Helm Charts
+     ↓           ↓              ↓
+  vpc_id    private_subnets   IRSA role ARNs
+public_subnets  cluster_endpoint  auth_token
+             ca_certificate
 ```
 
 ### Typical Usage Pattern
 ```hcl
-# VPC provides networking foundation
+# Root main.tf - orchestrates modules
 module "vpc" {
   source = "./modules/aws/vpc"
   # ... configuration
 }
 
-# EKS uses VPC outputs
 module "eks" {
   source = "./modules/aws/eks"
   
@@ -95,6 +96,16 @@ module "eks" {
   private_subnets = module.vpc.private_subnets
   public_subnets  = module.vpc.public_subnets
   # ... other configuration
+}
+
+# Root charts.tf - uses EKS module outputs
+resource "helm_release" "external_secrets" {
+  # ... configuration
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.eks.secrets_csi_irsa_role_arn
+  }
+  depends_on = [module.eks]
 }
 ```
 
@@ -123,28 +134,58 @@ Modules provide comprehensive outputs:
 - Network configuration details
 - Access credentials and endpoints
 
-## AWS Provider Configuration
+## Provider Configuration Strategy
 
-These modules require AWS Provider ~> 5.100:
+### Root-Level Provider Management
+All providers should be configured at the **root level** to avoid circular dependencies:
 
 ```hcl
+# versions.tf (root level)
 terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.100"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "2.37.1"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.12"
+    }
   }
 }
 
 provider "aws" {
   region = var.region
-  
   default_tags {
     tags = var.default_tags
   }
 }
+
+# Kubernetes/Helm providers use module outputs
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = module.eks.cluster_certificate_authority_data
+  token                  = module.eks.cluster_auth_token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = module.eks.cluster_certificate_authority_data
+    token                  = module.eks.cluster_auth_token
+  }
+}
 ```
+
+### Module Design Principles
+- **Modules are provider-agnostic**: No provider blocks within modules
+- **Use data sources and resources**: Modules use AWS resources/data sources directly
+- **Output required values**: Modules output connection details for root providers
+- **Dependency management**: Proper depends_on for resource creation order
 
 ## Best Practices
 
@@ -175,6 +216,7 @@ provider "aws" {
 - **Terraform**: ~>1.12
 - **AWS Provider**: ~> 5.100
 - **Kubernetes Provider**: 2.37.1 (for EKS module)
+- **Helm Provider**: ~> 2.12 (for root-level chart deployments)
 - **TLS Provider**: Latest (for OIDC certificate validation)
 
 ## Contributing

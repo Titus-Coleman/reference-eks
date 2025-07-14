@@ -29,10 +29,11 @@ The module provisions:
 - `addons.tf` - EKS add-ons configuration with IRSA integration
 - `irsa.tf` - OIDC provider and IAM Roles for Service Accounts
 - `security_groups.tf` - Network security rules for cluster and worker communication
-- `charts.tf` - Helm chart deployments (AWS Secrets Store CSI Driver)
 - `variables.tf` - Input variable definitions
 - `outputs.tf` - Output values for cluster connection and integration
 - `versions.tf` - Terraform and provider version constraints
+
+**Note**: Helm chart deployments are now managed at the root level in `charts.tf`
 
 ## Usage
 
@@ -89,6 +90,10 @@ module "eks" {
 | `cluster_auth_token` | Authentication token for cluster access |
 | `oidc_provider_arn` | OIDC provider ARN for IRSA |
 | `oidc_provider_id` | OIDC provider ID |
+| `secrets_csi_irsa_role_arn` | ARN of Secrets Store CSI Driver IRSA role |
+| `cert_manager_irsa_role_arn` | ARN of cert-manager IRSA role |
+| `secrets_csi_policy_arn` | ARN of Secrets Store CSI Driver policy |
+| `cert_manager_policy_arn` | ARN of cert-manager policy |
 
 ## Security Configuration
 
@@ -138,8 +143,10 @@ Each add-on has dedicated IAM roles with minimal required permissions:
 3. **Kube Proxy**: Network proxy with IRSA role
 4. **EBS CSI Driver**: Persistent volume support with IRSA role
 
-### Helm Charts
-1. **AWS Secrets Store CSI Driver**: Secure access to AWS Secrets Manager and Parameter Store with IRSA
+### IRSA Roles for External Charts
+The module creates IRSA roles for common external charts (deployed at root level):
+1. **Secrets Store CSI Driver**: Access to AWS Secrets Manager and Parameter Store
+2. **Cert-Manager**: Integration with AWS Certificate Manager and Route53
 
 ## IAM Configuration
 
@@ -289,6 +296,28 @@ aws ssm put-parameter \
 
 - **VPC Module**: Requires VPC with proper subnet configuration
 - **AWS Provider**: ~> 5.100 with appropriate permissions
-- **Kubernetes Provider**: 2.37.1 for resource management
-- **Helm Provider**: ~> 2.12 for Helm chart deployments
 - **TLS Provider**: For OIDC certificate validation
+
+**Note**: This module is provider-agnostic for Kubernetes/Helm providers. Those should be configured at the root level using this module's outputs.
+
+## Root-Level Integration
+
+This module is designed to work with root-level Helm chart deployments:
+
+```hcl
+# Root charts.tf uses module outputs
+resource "helm_release" "external_secrets" {
+  name             = "external-secrets"
+  repository       = "https://charts.external-secrets.io"
+  chart            = "external-secrets"
+  namespace        = "external-secrets"
+  create_namespace = true
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.eks.secrets_csi_irsa_role_arn
+  }
+
+  depends_on = [module.eks]
+}
+```

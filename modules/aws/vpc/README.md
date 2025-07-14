@@ -139,5 +139,9 @@ The module includes input validation:
 
 ## Dependencies
 
-- **AWS Provider**: Uses AWS availability zones data source
+- **AWS Provider**: Uses AWS availability zones data source  
 - **Terraform**: Compatible with Terraform ~>1.12
+
+## Integration Notes
+
+This module is designed for seamless integration with the EKS module and root-level configurations. All networking is properly configured for Kubernetes workloads with appropriate subnet tagging and routing.
