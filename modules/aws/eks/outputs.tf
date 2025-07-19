@@ -92,3 +92,23 @@ output "cert_manager_policy_arn" {
   description = "ARN of the cert-manager IAM policy"
   value       = aws_iam_policy.cert_manager.arn
 }
+
+output "external_dns_irsa_role_arn" {
+  description = "ARN of the External-DNS IRSA role"
+  value       = aws_iam_role.external_dns_irsa.arn
+}
+
+output "external_dns_policy_arn" {
+  description = "ARN of the External-DNS IAM policy"
+  value       = aws_iam_policy.external_dns.arn
+}
+
+output "load_balancer_controller_irsa_role_arn" {
+  description = "ARN of the AWS Load Balancer Controller IRSA role"
+  value       = aws_iam_role.load_balancer_controller_irsa.arn
+}
+
+output "load_balancer_controller_policy_arn" {
+  description = "ARN of the AWS Load Balancer Controller IAM policy"
+  value       = aws_iam_policy.load_balancer_controller.arn
+}

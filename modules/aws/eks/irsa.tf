@@ -180,7 +180,7 @@ resource "aws_iam_role" "secrets_csi_irsa" {
   tags = {
     Name        = "${var.cluster_name}-secrets-csi-irsa"
     Component   = "secrets-store-csi-driver"
-    ServiceType = "csi-driver"
+    ServiceType = "secrets-management"
   }
 }
 
@@ -214,7 +214,7 @@ resource "aws_iam_policy" "secrets_csi_policy" {
   tags = {
     Name        = "${var.cluster_name}-secrets-csi-policy"
     Component   = "secrets-store-csi-driver"
-    ServiceType = "csi-driver"
+    ServiceType = "secrets-management"
   }
 }
 
@@ -340,7 +340,7 @@ resource "aws_iam_role" "load_balancer_controller_irsa" {
   tags = {
     Name        = "${var.cluster_name}-load-balancer-controller-irsa"
     Component   = "aws-load-balancer-controller"
-    ServiceType = "addon"
+    ServiceType = "load-balancer"
   }
 }
 
@@ -455,7 +455,7 @@ resource "aws_iam_policy" "load_balancer_controller" {
         Resource = "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*"
       },
       {
-        Effect = "Allow" 
+        Effect = "Allow"
         Action = [
           "elasticloadbalancing:SetWebAcl",
           "elasticloadbalancing:ModifyListener",
@@ -478,4 +478,66 @@ resource "aws_iam_policy" "load_balancer_controller" {
 resource "aws_iam_role_policy_attachment" "load_balancer_controller_irsa_policy" {
   policy_arn = aws_iam_policy.load_balancer_controller.arn
   role       = aws_iam_role.load_balancer_controller_irsa.name
+}
+
+# External-DNS IRSA Role
+resource "aws_iam_role" "external_dns_irsa" {
+  name = "${var.cluster_name}-external-dns-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" : "system:serviceaccount:external-dns:external-dns"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" : "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-external-dns-irsa"
+    Component   = "external-dns"
+    ServiceType = "dns-management"
+  }
+}
+
+# IAM Policy for External-DNS with minimal Route53 permissions
+resource "aws_iam_policy" "external_dns" {
+  name        = "${var.cluster_name}-external-dns-policy"
+  description = "Minimal policy for External-DNS to manage Route53 DNS records"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:ChangeResourceRecordSets",
+          "route53:ListHostedZones",
+          "route53:ListResourceRecordSets"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-external-dns-policy"
+    Component   = "external-dns"
+    ServiceType = "dns-management"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "external_dns_irsa_policy" {
+  policy_arn = aws_iam_policy.external_dns.arn
+  role       = aws_iam_role.external_dns_irsa.name
 }
