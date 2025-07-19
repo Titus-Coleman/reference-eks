@@ -15,7 +15,7 @@ resource "aws_eks_addon" "vpc_cni" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
   service_account_role_arn    = aws_iam_role.cni_irsa.arn
-  
+
   depends_on = [
     aws_eks_node_group.main
   ]
@@ -34,7 +34,7 @@ resource "aws_eks_addon" "kube_proxy" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
   service_account_role_arn    = aws_iam_role.kube_proxy_irsa.arn
-  
+
   depends_on = [
     aws_eks_node_group.main
   ]
@@ -53,7 +53,7 @@ resource "aws_eks_addon" "coredns" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
   service_account_role_arn    = aws_iam_role.coredns_irsa.arn
-  
+
   depends_on = [
     aws_eks_node_group.main
   ]
@@ -72,7 +72,28 @@ resource "aws_eks_addon" "ebs_csi" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
   service_account_role_arn    = aws_iam_role.ebs_csi_irsa.arn
-  
+
+  depends_on = [
+    aws_eks_node_group.main
+  ]
+}
+
+
+# Load Balancer Controller
+data "aws_eks_addon_version" "load_balancer_controller" {
+  addon_name         = "aws-load-balancer-controller"
+  kubernetes_version = aws_eks_cluster.main.version
+}
+
+
+resource "aws_eks_addon" "load_balancer_controller" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "aws-load-balancer-controller"
+  addon_version               = data.aws_eks_addon_version.load_balancer_controller.version
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+  service_account_role_arn    = aws_iam_role.load_balancer_controller_irsa.arn
+
   depends_on = [
     aws_eks_node_group.main
   ]

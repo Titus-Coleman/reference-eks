@@ -313,3 +313,169 @@ resource "aws_iam_role_policy_attachment" "cert_manager_isra_policy" {
   role       = aws_iam_role.cert_manager.name
   policy_arn = aws_iam_policy.cert_manager.arn
 }
+
+# AWS Load Balancer Controller IRSA Role
+resource "aws_iam_role" "load_balancer_controller_irsa" {
+  name = "${var.cluster_name}-load-balancer-controller-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" : "system:serviceaccount:kube-system:aws-load-balancer-controller"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" : "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-load-balancer-controller-irsa"
+    Component   = "aws-load-balancer-controller"
+    ServiceType = "addon"
+  }
+}
+
+# IAM Policy for AWS Load Balancer Controller
+resource "aws_iam_policy" "load_balancer_controller" {
+  name        = "${var.cluster_name}-load-balancer-controller-policy"
+  description = "Policy for AWS Load Balancer Controller to manage ALB/NLB resources"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:CreateServiceLinkedRole"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "iam:AWSServiceName" = "elasticloadbalancing.amazonaws.com"
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeAccountAttributes",
+          "ec2:DescribeAddresses",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeVpcPeeringConnections",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeInstances",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeTags",
+          "ec2:GetCoipPoolUsage",
+          "ec2:GetManagedPrefixListEntries",
+          "ec2:DescribeCoipPools"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeLoadBalancerAttributes",
+          "elasticloadbalancing:DescribeListeners",
+          "elasticloadbalancing:DescribeListenerCertificates",
+          "elasticloadbalancing:DescribeSSLPolicies",
+          "elasticloadbalancing:DescribeRules",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetGroupAttributes",
+          "elasticloadbalancing:DescribeTargetHealth",
+          "elasticloadbalancing:DescribeTags"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:CreateTargetGroup"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "elasticloadbalancing:CreateAction" = [
+              "CreateTargetGroup",
+              "CreateLoadBalancer"
+            ]
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:CreateRule",
+          "elasticloadbalancing:DeleteRule"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:AddTags",
+          "elasticloadbalancing:RemoveTags"
+        ]
+        Resource = [
+          "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
+          "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*",
+          "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*"
+        ]
+        Condition = {
+          StringEquals = {
+            "elasticloadbalancing:CreateAction" = [
+              "CreateTargetGroup",
+              "CreateLoadBalancer"
+            ]
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:RegisterTargets",
+          "elasticloadbalancing:DeregisterTargets"
+        ]
+        Resource = "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*"
+      },
+      {
+        Effect = "Allow" 
+        Action = [
+          "elasticloadbalancing:SetWebAcl",
+          "elasticloadbalancing:ModifyListener",
+          "elasticloadbalancing:AddListenerCertificates",
+          "elasticloadbalancing:RemoveListenerCertificates",
+          "elasticloadbalancing:ModifyRule"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.cluster_name}-load-balancer-controller-policy"
+    Component   = "aws-load-balancer-controller"
+    ServiceType = "addon"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "load_balancer_controller_irsa_policy" {
+  policy_arn = aws_iam_policy.load_balancer_controller.arn
+  role       = aws_iam_role.load_balancer_controller_irsa.name
+}

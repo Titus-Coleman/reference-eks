@@ -95,6 +95,59 @@ module "eks" {
 | `secrets_csi_policy_arn` | ARN of Secrets Store CSI Driver policy |
 | `cert_manager_policy_arn` | ARN of cert-manager policy |
 
+## Module Outputs Usage
+
+### **Provider Configuration Outputs**
+Used by root-level provider configuration in `versions.tf`:
+
+```hcl
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = module.eks.cluster_certificate_authority_data  
+  token                  = module.eks.cluster_auth_token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = module.eks.cluster_certificate_authority_data
+    token                  = module.eks.cluster_auth_token
+  }
+}
+```
+
+### **IRSA Integration Outputs**
+Used by root-level Helm charts in `charts.tf`:
+
+```hcl
+resource "helm_release" "external_secrets" {
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.eks.secrets_csi_irsa_role_arn  # ← Module output
+  }
+}
+
+resource "helm_release" "cert_manager" {
+  values = [
+    yamlencode({
+      serviceAccount = {
+        annotations = {
+          "eks.amazonaws.com/role-arn" = module.eks.cert_manager_irsa_role_arn  # ← Module output
+        }
+      }
+    })
+  ]
+}
+```
+
+### **Informational Outputs**
+Available for reference but not typically used externally:
+- `cluster_id`, `oidc_provider_arn`, `admin_access_entry_arn`
+- Useful for debugging or integration with other tools
+
+### **EKS Add-on Outputs**
+**Note**: EKS managed add-ons (VPC CNI, CoreDNS, Kube Proxy, EBS CSI, Load Balancer Controller) do **not** need module outputs since they're fully managed by EKS and use IRSA roles internally.
+
 ## Security Configuration
 
 ### Network Security
@@ -108,13 +161,55 @@ module "eks" {
 - **RBAC Integration**: Dual authentication mode (API_AND_CONFIG_MAP)
 - **Bootstrap Admin**: Cluster creator gets automatic admin permissions
 
+### Authentication Configuration  
+
+**Dual Authentication Mode: API_AND_CONFIG_MAP**
+```hcl
+access_config {
+  authentication_mode                         = "API_AND_CONFIG_MAP"
+  bootstrap_cluster_creator_admin_permissions = true
+}
+```
+
+**Benefits:**
+- **New API Method**: Uses EKS access entries (recommended)  
+- **Legacy Support**: Maintains aws-auth ConfigMap compatibility
+- **Smooth Migration**: Both methods work simultaneously
+- **Bootstrap Access**: Cluster creator gets immediate admin access
+
+**Access Management:**
+- **API Mode**: Managed via `aws_eks_access_entry` and `aws_eks_access_policy_association`
+- **ConfigMap Mode**: Traditional aws-auth ConfigMap (backwards compatibility)
+- **Automatic Bootstrap**: `bootstrap_cluster_creator_admin_permissions = true` ensures immediate access
+
+**Access Entry Example:**
+```hcl
+resource "aws_eks_access_entry" "admin_role" {
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = aws_iam_role.eks_admins_role.arn  # IAM role ARN
+  type          = "STANDARD"  # For IAM roles/users
+}
+
+resource "aws_eks_access_policy_association" "admin_policy" {
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = aws_iam_role.eks_admins_role.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  
+  access_scope {
+    type = "cluster"  # Cluster-wide permissions
+  }
+}
+```
+
 ### IRSA (IAM Roles for Service Accounts)
 Each add-on has dedicated IAM roles with minimal required permissions:
 - **VPC CNI**: `system:serviceaccount:kube-system:aws-node`
 - **EBS CSI**: `system:serviceaccount:kube-system:ebs-csi-controller-sa`
 - **CoreDNS**: `system:serviceaccount:kube-system:coredns`
 - **Kube Proxy**: `system:serviceaccount:kube-system:kube-proxy`
-- **Secrets CSI**: `system:serviceaccount:kube-system:secrets-store-csi-driver`
+- **Load Balancer Controller**: `system:serviceaccount:kube-system:aws-load-balancer-controller`
+- **Secrets CSI**: `system:serviceaccount:kube-system:secrets-store-csi-driver` (external chart)
+- **Cert-Manager**: `system:serviceaccount:cert-manager:cert-manager` (external chart)
 
 ## Node Group Configuration
 
@@ -142,11 +237,24 @@ Each add-on has dedicated IAM roles with minimal required permissions:
 2. **CoreDNS**: DNS resolution with IRSA role  
 3. **Kube Proxy**: Network proxy with IRSA role
 4. **EBS CSI Driver**: Persistent volume support with IRSA role
+5. **AWS Load Balancer Controller**: ALB/NLB management with IRSA role
 
 ### IRSA Roles for External Charts
 The module creates IRSA roles for common external charts (deployed at root level):
 1. **Secrets Store CSI Driver**: Access to AWS Secrets Manager and Parameter Store
 2. **Cert-Manager**: Integration with AWS Certificate Manager and Route53
+
+### IRSA Permissions Summary
+**EKS Add-ons (Managed):**
+- VPC CNI → AmazonEKS_CNI_Policy
+- EBS CSI → AmazonEBSCSIDriverPolicy  
+- CoreDNS → (No additional permissions required)
+- Kube Proxy → (No additional permissions required)
+- Load Balancer Controller → Custom policy (EC2, ELB operations)
+
+**External Charts (Root-level):**
+- Secrets CSI → Custom policy (SecretsManager, SSM read-only)
+- Cert-Manager → Custom policy (ACM, Route53 operations)
 
 ## IAM Configuration
 
@@ -299,6 +407,15 @@ aws ssm put-parameter \
 - **TLS Provider**: For OIDC certificate validation
 
 **Note**: This module is provider-agnostic for Kubernetes/Helm providers. Those should be configured at the root level using this module's outputs.
+
+### EKS Add-on Dependencies
+**EKS Managed Add-ons** (no external dependencies):
+- VPC CNI, CoreDNS, Kube Proxy, EBS CSI Driver, **AWS Load Balancer Controller**
+- All IRSA roles and permissions managed internally by this module
+- No root-level outputs or integration required
+
+**External Charts** (require root-level integration):
+- External Secrets, Cert-Manager → Use module IRSA outputs in root `charts.tf`
 
 ## Root-Level Integration
 
