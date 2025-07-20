@@ -410,7 +410,7 @@ aws ssm put-parameter \
 
 ### EKS Add-on Dependencies
 **EKS Managed Add-ons** (no external dependencies):
-- VPC CNI, CoreDNS, Kube Proxy, EBS CSI Driver, **AWS Load Balancer Controller**
+- VPC CNI, CoreDNS, Kube Proxy, EBS CSI Driver, AWS Load Balancer Controller
 - All IRSA roles and permissions managed internally by this module
 - No root-level outputs or integration required
 
