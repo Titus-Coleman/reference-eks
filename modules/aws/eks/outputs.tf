@@ -60,7 +60,7 @@ output "admin_access_entry_arn" {
 output "admin_policy_association" {
   description = "Admin policy association details"
   value = {
-    policy_arn = aws_eks_access_policy_association.admin_policy.policy_arn
+    policy_arn        = aws_eks_access_policy_association.admin_policy.policy_arn
     access_scope_type = aws_eks_access_policy_association.admin_policy.access_scope[0].type
   }
 }
@@ -68,7 +68,7 @@ output "admin_policy_association" {
 output "cluster_creator_policy_association" {
   description = "Cluster creator policy association details"
   value = {
-    policy_arn = aws_eks_access_policy_association.cluster_creator_policy.policy_arn
+    policy_arn        = aws_eks_access_policy_association.cluster_creator_policy.policy_arn
     access_scope_type = aws_eks_access_policy_association.cluster_creator_policy.access_scope[0].type
   }
 }
@@ -103,12 +103,12 @@ output "external_dns_policy_arn" {
   value       = aws_iam_policy.external_dns.arn
 }
 
-output "load_balancer_controller_irsa_role_arn" {
-  description = "ARN of the AWS Load Balancer Controller IRSA role"
-  value       = aws_iam_role.load_balancer_controller_irsa.arn
+output "load_balancer_controller_irsa_name" {
+  description = "ARN of the AWS Load Balancer Controller role"
+  value       = aws_iam_role.load_balancer_controller_irsa.name
 }
 
 output "load_balancer_controller_policy_arn" {
-  description = "ARN of the AWS Load Balancer Controller IAM policy"
+  description = "ARN of the AWS Load Balancer Controller IAM Policy"
   value       = aws_iam_policy.load_balancer_controller.arn
 }
