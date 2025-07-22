@@ -32,11 +32,11 @@ module "eks" {
 
   managed_node_groups = {
     demo_group = {
-      name           = "demo-node-group"
+      name           = "${var.cluster_name}-node-group"
       desired_size   = 2
       min_size       = 1
       max_size       = 3
-      instance_types = ["t4g.small"]
+      instance_types = ["m6g.large"]
     }
   }
 }
