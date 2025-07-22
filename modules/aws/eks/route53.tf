@@ -1,10 +1,17 @@
-data "aws_route53_zone" "domains" {
-  for_each = toset(var.domain_names)
-  name     = each.value
+data "aws_route53_zone" "tituscoleman_dev" {
+  name = "tituscoleman.dev."
 }
 
-
-# Create local for all zone IDs
+# Local values for zone management
 locals {
-  all_zone_ids = [for zone in data.aws_route53_zone.domains : zone.zone_id]
+  # Include your tituscoleman.dev zone
+  all_zone_ids = [
+    data.aws_route53_zone.tituscoleman_dev.zone_id
+    # Add other zones as needed
+  ]
+
+  # Zone mapping for easier reference
+  zone_map = {
+    "tituscoleman.dev" = data.aws_route53_zone.tituscoleman_dev.zone_id
+  }
 }

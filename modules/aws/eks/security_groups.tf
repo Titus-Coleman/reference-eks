@@ -62,8 +62,8 @@ resource "aws_security_group" "eks_nodes_sg" {
 
 resource "aws_security_group_rule" "worker_node_ingress_nginx" {
   type                     = "ingress"
-  from_port                = 8443
-  to_port                  = 8443
+  from_port                = 9443
+  to_port                  = 9443
   protocol                 = "tcp"
   security_group_id        = aws_security_group.eks_nodes_sg.id
   source_security_group_id = aws_security_group.eks_cluster_sg.id

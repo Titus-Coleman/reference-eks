@@ -2,6 +2,11 @@
 ### OIDC CONFIGURATION
 ############################################################################################################
 
+# Local variables for Route53 zone IDs
+# locals {
+#   all_zone_ids = [data.aws_route53_zone.tituscoleman_dev.id]
+# }
+
 data "tls_certificate" "eks" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer
 }
@@ -316,7 +321,7 @@ resource "aws_iam_role_policy_attachment" "cert_manager_isra_policy" {
 
 # AWS Load Balancer Controller IRSA Role
 resource "aws_iam_role" "load_balancer_controller_irsa" {
-  name = "${var.cluster_name}-load-balancer-controller-irsa"
+  name = "aws-load-balancer-controller"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
